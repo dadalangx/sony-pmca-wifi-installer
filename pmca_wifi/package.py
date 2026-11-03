@@ -9,6 +9,7 @@ import zlib
 
 from Cryptodome.Cipher import AES
 from .spk_constants import blockSize, rsaModulus, rsaExponent, sampleSpkKey
+from .i18n import PackageError
 
 MAX_APK = 16 * 1024 * 1024
 RECIPE_URL = "https://github.com/voxivoid/recipe-lab-sony-pmca/releases/download/v1.11.1/RecipeLab.apk"
@@ -107,7 +108,7 @@ def manifest_metadata(data):
 
 def wrap_spk(apk):
     if not apk or len(apk) > MAX_APK:
-        raise ValueError("应用包为空或超过 16 MB。")
+        raise PackageError("apk_size")
     number = pow(int.from_bytes(sampleSpkKey, "big"), rsaExponent, rsaModulus)
     key = number.to_bytes((number.bit_length() + 7) // 8, "big")
     if len(key) != 16:
@@ -139,19 +140,19 @@ class AppPackage:
 
 def prepare_apk(apk, name):
     if len(apk) > MAX_APK:
-        raise ValueError("应用包超过 16 MB，暂不支持。")
+        raise PackageError("apk_size")
     try:
         with zipfile.ZipFile(io.BytesIO(apk)) as archive:
             entry = archive.getinfo("AndroidManifest.xml")
             if entry.file_size > 2 * 1024 * 1024 or len(archive.infolist()) > 50000:
-                raise ValueError("APK 内容超出支持范围。")
+                raise PackageError("apk_contents")
             metadata = manifest_metadata(archive.read(entry))
     except (zipfile.BadZipFile, KeyError) as error:
-        raise ValueError("这不是有效的 APK 应用包。") from error
+        raise PackageError("apk_invalid", detail=str(error)) from error
     try:
         min_sdk = int(metadata.get("minSdkVersion", 1))
     except (ValueError, TypeError) as error:
-        raise ValueError("APK 的系统版本要求无法读取。") from error
+        raise PackageError("apk_sdk") from error
     return AppPackage(str(name)[:120], metadata["package"], str(metadata.get("versionName", ""))[:100],
                       min_sdk, hashlib.sha256(apk).hexdigest(), hashlib.md5(apk).hexdigest(), wrap_spk(apk))
 
@@ -160,5 +161,5 @@ def download_recipe(progress=lambda *args: None):
     from .download import https_get
     data = https_get(RECIPE_URL, MAX_APK, progress)
     if hashlib.sha256(data).hexdigest() != RECIPE_SHA256:
-        raise ValueError("Recipe Lab 校验失败，请重试。")
+        raise PackageError("recipe_checksum")
     return prepare_apk(bytes(data), "Recipe Lab")

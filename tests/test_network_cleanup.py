@@ -26,5 +26,6 @@ def test_an_existing_active_hotspot_is_left_unchanged(monkeypatch):
     def forbidden(*args):
         raise AssertionError("Must not mutate an existing hotspot")
     monkeypatch.setattr(network, "netsh", forbidden)
-    with pytest.raises(RuntimeError, match="正在使用"):
+    with pytest.raises(network.UserError) as caught:
         asyncio.run(network.NetworkSession().start("Test", "12345678"))
+    assert caught.value.key == "legacy_active"

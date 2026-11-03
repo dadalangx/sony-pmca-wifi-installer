@@ -7,6 +7,8 @@ import sys
 import uuid
 from dataclasses import dataclass
 
+from .i18n import UserError
+
 
 def powershell(code, timeout=25):
     result = subprocess.run(
@@ -16,7 +18,7 @@ def powershell(code, timeout=25):
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
     if result.returncode:
-        raise RuntimeError(result.stderr.strip() or "Windows 网络操作失败。")
+        raise UserError("windows_network", detail=result.stderr.strip())
     return result.stdout.strip()
 
 
@@ -47,10 +49,10 @@ def find_hotspot_adapter():
     """
     rows = json.loads(powershell(code))
     if len(rows) != 1:
-        raise RuntimeError("尚未找到电脑热点的连接，请稍后重试。")
+        raise UserError("adapter_missing")
     adapter = HotspotAdapter(**rows[0])
     if not ipaddress.ip_address(adapter.ip).is_private or not 16 <= adapter.prefix <= 30:
-        raise RuntimeError("电脑热点的地址不受支持。")
+        raise UserError("adapter_address")
     return adapter
 
 
@@ -63,7 +65,7 @@ class FirewallRule:
 
     def start(self):
         if not is_admin():
-            raise RuntimeError("请以管理员身份运行工具，以便允许相机连接。")
+            raise UserError("firewall_admin")
         # The rule is limited to this process, this hotspot address and subnet.
         executable = sys.executable.replace("'", "''")
         a = self.adapter

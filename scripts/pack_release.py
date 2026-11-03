@@ -10,7 +10,7 @@ from pmca_wifi import __version__
 
 
 def source_files():
-    names = ["README.md", "LICENSE", "THIRD_PARTY.md", "RELEASE_NOTES.md", ".gitignore",
+    names = ["README.md", "README.zh-CN.md", "LICENSE", "THIRD_PARTY.md", "RELEASE_NOTES.md", ".gitignore",
              "requirements.txt", "requirements-dev.txt", "build.py", "main.py",
              "scripts/fetch_vendor.py", "scripts/pack_release.py"]
     result = [ROOT / name for name in names]

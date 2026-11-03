@@ -2,6 +2,8 @@
 import ctypes as C
 from urllib.parse import urlsplit
 
+from .i18n import UserError, PackageError
+
 
 def https_get(url, max_size, progress=lambda *args: None):
     parts = urlsplit(url)
@@ -44,12 +46,12 @@ def https_get(url, max_size, progress=lambda *args: None):
         status, size = C.c_uint32(), C.c_uint32(4)
         checked(api.WinHttpQueryHeaders(request, 19 | 0x20000000, None, C.byref(status), C.byref(size), None))
         if status.value != 200:
-            raise RuntimeError(f"GitHub 下载失败（HTTP {status.value}）。可改为选择本地 APK。")
+            raise UserError("download_http", code=status.value)
         total, size = C.c_uint32(), C.c_uint32(4)
         if not api.WinHttpQueryHeaders(request, 5 | 0x20000000, None, C.byref(total), C.byref(size), None):
             total.value = 0
         if total.value > max_size:
-            raise ValueError("下载的应用包过大。")
+            raise PackageError("download_size")
         buffer, count, result = C.create_string_buffer(65536), C.c_uint32(), bytearray()
         while True:
             checked(api.WinHttpReadData(request, buffer, len(buffer), C.byref(count)))
@@ -57,7 +59,7 @@ def https_get(url, max_size, progress=lambda *args: None):
                 break
             result.extend(buffer.raw[:count.value])
             if len(result) > max_size:
-                raise ValueError("下载的应用包过大。")
+                raise PackageError("download_size")
             progress(len(result), total.value)
         return bytes(result)
     finally:

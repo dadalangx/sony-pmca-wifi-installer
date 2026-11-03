@@ -6,6 +6,7 @@ import subprocess
 import sys
 
 from .hotspot import HotspotSession
+from .i18n import UserError
 from .windows import powershell, find_hotspot_adapter
 
 COM = "$m=New-Object -ComObject HNetCfg.HNetShare; "
@@ -63,7 +64,7 @@ def legacy_settings():
 def netsh(*args):
     result = subprocess.run(["netsh", "wlan", *args], capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
     if result.returncode:
-        raise RuntimeError("Windows 无法启动此网卡的热点。" + result.stdout.decode("mbcs", errors="replace").strip())
+        raise UserError("legacy_start", detail=result.stdout.decode("mbcs", errors="replace").strip())
 
 
 def sharing(public, private, enable):
@@ -97,35 +98,35 @@ class NetworkSession:
     async def start(self, ssid, password):
         info = legacy_settings()
         if info["state"] == 2:
-            raise RuntimeError("电脑的传统热点正在使用中，请先关闭它再重试。")
+            raise UserError("legacy_active")
         if info["state"] == 1:
             await self._start_legacy(ssid, password, info)
-            mode = "传统热点"
+            mode = "Hosted Network"
         else:
             self.mobile = HotspotSession()
             await self.mobile.start(ssid, password)
-            mode = "Windows 移动热点"
+            mode = "Windows Mobile Hotspot"
         for _ in range(20):
             try:
                 return find_hotspot_adapter(), mode
             except RuntimeError:
                 await asyncio.sleep(1)
-        raise RuntimeError("热点已启动，但 Windows 尚未分配连接地址。")
+        raise UserError("address_pending")
 
     async def _start_legacy(self, ssid, password, info):
         from winrt.windows.networking.connectivity import NetworkInformation
         snapshot = json.loads(powershell(SNAPSHOT))
         if not snapshot:
-            raise RuntimeError("无法读取 Windows 网络共享设置。")
+            raise UserError("sharing_read")
         if any(row["enabled"] for row in snapshot):
-            raise RuntimeError("电脑已有其他网络共享连接。请先结束该共享，再重试。")
+            raise UserError("sharing_active")
         # Preserve existing idle Hosted Network credentials, if there are any.
         if info.get("key_error"):
-            raise RuntimeError(f"读取现有热点配置失败（Windows 错误 {info['key_error']}）。")
+            raise UserError("hotspot_read", code=info["key_error"])
         self.legacy = info
         profile = NetworkInformation.get_internet_connection_profile()
         if not profile:
-            raise RuntimeError("请先让电脑连接网络。")
+            raise UserError("internet_required")
         self.public = str(profile.network_adapter.network_adapter_id)
         netsh("set", "hostednetwork", "mode=allow", "ssid=" + ssid, "key=" + password, "keyUsage=temporary")
         netsh("start", "hostednetwork")
@@ -139,7 +140,7 @@ class NetworkSession:
                 break
             await asyncio.sleep(1)
         if self.private is None:
-            raise RuntimeError("传统热点的网卡尚未就绪。")
+            raise UserError("legacy_adapter")
         self.shared = True  # Include partially failed EnableSharing in rollback.
         sharing(self.public, self.private, True)
         await asyncio.sleep(2)
@@ -177,4 +178,4 @@ class NetworkSession:
             except Exception as error:
                 errors.append(error)
         if errors:
-            raise RuntimeError("热点清理未完成：" + "; ".join(str(e) for e in errors))
+            raise UserError("cleanup_failed", errors=errors)

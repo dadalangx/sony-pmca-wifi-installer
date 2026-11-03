@@ -1,10 +1,10 @@
 """Beginner-facing Windows wizard. Network work stays off the UI thread."""
 import asyncio
+import argparse
 import ctypes
 from datetime import datetime
 from pathlib import Path
 import queue
-import sys
 import threading
 import time
 import tkinter as tk
@@ -13,76 +13,120 @@ import traceback
 
 from . import __version__
 from .dns import DnsRedirect
+from .i18n import LANGUAGES, UserError, text
 from .network import NetworkSession
 from .package import download_recipe, prepare_apk, MAX_APK
 from .server import InstallerServer
-from .settings import credentials, state_dir
+from .settings import credentials, state_dir, load_language, save_language
 from .windows import FirewallRule, is_admin
 
 
 class App:
-    def __init__(self, root, lab=False):
+    def __init__(self, root, lab=False, language=None):
         self.root, self.lab = root, lab
+        self.language = language or load_language()
         self.queue = queue.Queue()
         self.stop = threading.Event()
         self.thread = None
         self.closing = False
         self.file = None
+        self.completed = False
+        self.status_key, self.status_params = "idle", {}
         self.creds = {"ssid": "CAMSETUP", "password": "24682468"} if lab else credentials()
-        self.choice = tk.StringVar(value="Recipe Lab 1.11.1（作者原版）")
-        self.title = tk.StringVar(value="通过 Wi-Fi，为相机安装应用")
-        self.detail = tk.StringVar(value="支持的 Sony PMCA 相机 · 无需 USB · 无需特殊路由器")
-        self.step = tk.StringVar(value="选择应用 → 连接相机 → 确认安装 → 完成")
-        self.status = tk.StringVar(value="选择 Recipe Lab，或打开兼容的本地 APK。")
-        root.title("Sony 相机应用安装助手 · " + __version__ + " 实验版")
+        self.copy = {key: tk.StringVar() for key in (
+            "detail", "steps", "app_label", "choose", "wifi_label", "password",
+            "instructions", "start", "stop", "badge")}
+        self.choice, self.title, self.status = tk.StringVar(), tk.StringVar(), tk.StringVar()
+        self.language_choice = tk.StringVar()
         scale = max(1.0, root.winfo_fpixels("1i") / 96)
-        root.geometry(f"{int(780 * scale)}x{int(680 * scale)}")
-        root.minsize(int(720 * scale), int(650 * scale))
+        root.geometry(f"{int(860 * scale)}x{int(740 * scale)}")
+        root.minsize(int(820 * scale), int(700 * scale))
         root.configure(background="#f5f6f8")
-        style = ttk.Style(root)
-        style.theme_use("clam")
-        style.configure("TFrame", background="#f5f6f8")
-        style.configure("TLabel", background="#f5f6f8", font=("Microsoft YaHei UI", 10))
-        style.configure("Title.TLabel", font=("Microsoft YaHei UI", 21, "bold"), foreground="#182133")
-        style.configure("TButton", font=("Microsoft YaHei UI", 11), padding=(16, 9))
-        frame = ttk.Frame(root, padding=28)
+        self.style = ttk.Style(root)
+        self.style.theme_use("clam")
+        self.style.configure("TFrame", background="#f5f6f8")
+        self.style.configure("Title.TLabel", foreground="#182133")
+        self.style.configure("TButton", padding=(14, 9))
+        frame = ttk.Frame(root, padding=24)
         frame.pack(fill="both", expand=True)
-        ttk.Label(frame, textvariable=self.title, style="Title.TLabel").pack(anchor="w")
-        ttk.Label(frame, textvariable=self.detail, foreground="#5c6575").pack(anchor="w", pady=(7, 20))
-        ttk.Label(frame, textvariable=self.step, foreground="#385d96").pack(anchor="w")
+        header = ttk.Frame(frame)
+        header.pack(fill="x", pady=(0, 12))
+        self.language_picker = ttk.Combobox(header, textvariable=self.language_choice,
+            values=list(LANGUAGES.values()), state="readonly", width=13)
+        self.language_picker.pack(side="right")
+        self.language_picker.bind("<<ComboboxSelected>>", self.change_language)
+        ttk.Label(header, text="Language / 语言").pack(side="right", padx=8)
+        ttk.Label(frame, textvariable=self.title, style="Title.TLabel", wraplength=int(780 * scale)).pack(anchor="w")
+        ttk.Label(frame, textvariable=self.copy["detail"], foreground="#5c6575").pack(anchor="w", pady=(7, 16))
+        ttk.Label(frame, textvariable=self.copy["steps"], foreground="#385d96").pack(anchor="w")
         self.progress = ttk.Progressbar(frame, maximum=4, mode="determinate")
-        self.progress.pack(fill="x", pady=(10, 20))
+        self.progress.pack(fill="x", pady=(10, 16))
         row = ttk.Frame(frame)
         row.pack(fill="x")
-        ttk.Label(row, text="安装应用").pack(side="left")
-        self.choose = ttk.Button(row, text="选择本地 APK…", command=self.select_file)
+        ttk.Label(row, textvariable=self.copy["app_label"]).pack(side="left")
+        self.choose = ttk.Button(row, textvariable=self.copy["choose"], command=self.select_file)
         self.choose.pack(side="right")
-        ttk.Label(frame, textvariable=self.choice, font=("Microsoft YaHei UI", 13, "bold"), wraplength=660).pack(anchor="w", pady=(7, 14))
+        self.choice_label = ttk.Label(frame, textvariable=self.choice, wraplength=int(780 * scale))
+        self.choice_label.pack(anchor="w", pady=(7, 14))
         card = tk.Frame(frame, bg="white", padx=20, pady=16, highlightbackground="#dce1e8", highlightthickness=1)
         card.pack(fill="x")
-        tk.Label(card, text="相机要连接的 Wi-Fi", bg="white", fg="#5c6575", font=("Microsoft YaHei UI", 10)).pack(anchor="w")
+        self.wifi_label = tk.Label(card, textvariable=self.copy["wifi_label"], bg="white", fg="#5c6575")
+        self.wifi_label.pack(anchor="w")
         tk.Label(card, text=self.creds["ssid"], bg="white", fg="#182133", font=("Consolas", 22, "bold")).pack(anchor="w", pady=(3, 8))
-        tk.Label(card, text="密码：" + self.creds["password"] + "  （8 位数字）", bg="white", fg="#182133", font=("Microsoft YaHei UI", 13)).pack(anchor="w")
-        instructions = "① 点击开始，等待热点就绪\n② 相机 MENU → 无线 → 访问点手动设置，选择上面的 Wi-Fi\n③ 打开 PlayMemories 商店，选择 Install app 并确认安装"
-        ttk.Label(frame, text=instructions, wraplength=680, justify="left").pack(anchor="w", pady=16)
-        ttk.Label(frame, textvariable=self.status, wraplength=680, foreground="#24514c").pack(anchor="w", pady=(0, 12))
+        self.password_label = tk.Label(card, textvariable=self.copy["password"], bg="white", fg="#182133")
+        self.password_label.pack(anchor="w")
+        ttk.Label(frame, textvariable=self.copy["instructions"], wraplength=int(780 * scale), justify="left").pack(anchor="w", pady=16)
+        ttk.Label(frame, textvariable=self.status, wraplength=int(780 * scale), foreground="#24514c").pack(anchor="w", pady=(0, 12))
         actions = ttk.Frame(frame)
         actions.pack(side="bottom", fill="x")
-        self.start_button = ttk.Button(actions, text="开始安装", command=self.start)
+        self.start_button = ttk.Button(actions, textvariable=self.copy["start"], command=self.start)
         self.start_button.pack(side="right")
-        self.stop_button = ttk.Button(actions, text="结束并关闭热点", command=self.cancel, state="disabled")
+        self.stop_button = ttk.Button(actions, textvariable=self.copy["stop"], command=self.cancel, state="disabled")
         self.stop_button.pack(side="right", padx=10)
-        ttk.Label(actions, text="实验版 · 已实测 A7R II", foreground="#737b87").pack(side="left")
+        ttk.Label(actions, textvariable=self.copy["badge"], foreground="#737b87").pack(side="left")
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(100, self.poll)
+        self.apply_language()
         if not is_admin():
-            self.status.set("请关闭窗口，以管理员身份重新运行工具。")
+            self.set_status("admin")
             self.start_button.configure(state="disabled")
         elif lab:
             root.after(500, self.start)
 
+    def tr(self, key, **params):
+        return text(key, self.language, **params)
+
+    def apply_language(self):
+        self.root.title(self.tr("window", version=__version__))
+        self.language_choice.set(LANGUAGES[self.language])
+        for key, variable in self.copy.items():
+            variable.set(self.tr(key, password=self.creds["password"]))
+        self.title.set(self.tr("complete_title" if self.completed else "title"))
+        self.choice.set(self.file.name if self.file else self.tr("recipe"))
+        self.status.set(self.tr(self.status_key, **self.status_params))
+        font = "Microsoft YaHei UI" if self.language == "zh-CN" else "Segoe UI"
+        self.style.configure("TLabel", background="#f5f6f8", font=(font, 10))
+        self.style.configure("Title.TLabel", font=(font, 21, "bold"))
+        self.style.configure("TButton", font=(font, 11))
+        self.style.configure("TCombobox", font=(font, 10))
+        self.choice_label.configure(font=(font, 13, "bold"))
+        self.wifi_label.configure(font=(font, 10))
+        self.password_label.configure(font=(font, 13))
+
+    def change_language(self, event=None):
+        self.language = next(key for key, label in LANGUAGES.items() if label == self.language_choice.get())
+        self.apply_language()
+        try:
+            save_language(self.language)
+        except OSError as error:
+            self.set_status("incomplete", message=UserError("save_language", detail=str(error)))
+
+    def set_status(self, key, **params):
+        self.status_key, self.status_params = key, params
+        self.status.set(self.tr(key, **params))
+
     def select_file(self):
-        name = filedialog.askopenfilename(title="选择 Sony PMCA 兼容应用", filetypes=[("安卓应用 APK", "*.apk")])
+        name = filedialog.askopenfilename(title=self.tr("file_title"), filetypes=[(self.tr("file_type"), "*.apk")])
         if name:
             self.file = Path(name)
             self.choice.set(self.file.name)
@@ -91,6 +135,8 @@ class App:
         if self.thread and self.thread.is_alive():
             return
         self.stop.clear()
+        self.completed = False
+        self.title.set(self.tr("title"))
         self.start_button.configure(state="disabled")
         self.choose.configure(state="disabled")
         self.stop_button.configure(state="normal")
@@ -112,7 +158,7 @@ class App:
         try:
             asyncio.run(self.session())
         except Exception as error:
-            self.event("fatal", {"message": str(error)})
+            self.event("fatal", {"message": str(error), "error": error})
             with (state_dir() / "error.log").open("a", encoding="utf-8") as out:
                 out.write(datetime.now().isoformat() + "\n" + traceback.format_exc() + "\n")
         finally:
@@ -153,7 +199,8 @@ class App:
             while not self.stop.is_set() and time.monotonic() < deadline:
                 await asyncio.sleep(0.25)
             if not finished.is_set() and not self.stop.is_set():
-                self.event("fatal", {"message": "等待超过 40 分钟，已结束本次连接，请重新开始。"})
+                error = UserError("timeout")
+                self.event("fatal", {"message": str(error), "error": error})
             if finished.is_set():
                 await asyncio.sleep(1)  # Let the camera receive its completion response.
         finally:
@@ -163,18 +210,18 @@ class App:
                     try:
                         resource.close()
                     except Exception as error:
-                        cleanup_errors.append(str(error))
+                        cleanup_errors.append(error)
             try:
                 await network.close()
             except Exception as error:
-                cleanup_errors.append(str(error))
+                cleanup_errors.append(error)
             if cleanup_errors:
-                raise RuntimeError("；".join(cleanup_errors))
+                raise UserError("cleanup_failed", errors=cleanup_errors)
 
     def cancel(self):
         self.stop.set()
         self.stop_button.configure(state="disabled")
-        self.status.set("正在结束连接并关闭热点，请稍候…")
+        self.set_status("cleanup")
 
     def close(self):
         if self.thread and self.thread.is_alive():
@@ -189,30 +236,24 @@ class App:
                 kind, data = self.queue.get_nowait()
             except queue.Empty:
                 break
-            messages = {
-                "preparing": (1, "正在准备应用并校验安装包…"),
-                "network": (2, "应用已校验，正在开启电脑热点…"),
-                "hotspot": (2, "热点已就绪。请让相机连接上面的 Wi-Fi，然后打开 PlayMemories 商店。"),
-                "ready": (3, "相机已连接。请在相机选择 Install app。"),
-                "downloading": (3, "正在向相机传输应用，请保持相机页面打开…"),
-                "prepared": (3, "相机上的安装包校验通过。"),
-                "opening": (4, "请在相机确认安装。安装结束后，再打开一次 PlayMemories 商店完成核对。"),
-            }
+            messages = {"preparing": 1, "network": 2, "hotspot": 2,
+                        "ready": 3, "downloading": 3, "prepared": 3, "opening": 4}
             if kind in messages:
-                step, text = messages[kind]
-                self.progress["value"] = step
-                self.status.set(text)
+                self.progress["value"] = messages[kind]
+                self.set_status(kind)
             elif kind == "verified":
                 self.progress["value"] = 4
-                self.title.set("应用已就绪")
-                result = "相机已有相同版本，无线传输和文件校验通过。" if data.get("alreadyInstalled") else "安装已核对，临时安装包已清理。"
-                self.status.set(result + "请退出相机商店，再点击结束并关闭热点。")
+                self.completed = True
+                self.title.set(self.tr("complete_title"))
+                self.set_status("already_installed" if data.get("alreadyInstalled") else "verified")
             elif kind in ("fatal", "network_error", "error"):
-                self.status.set("未完成：" + str(data.get("message", "请查看相机提示，重试或结束连接。")))
+                self.set_status("incomplete", message=data.get("error") or data.get("message") or UserError("camera_error"))
             elif kind == "stopped":
-                self.start_button.configure(state="normal")
+                self.start_button.configure(state="normal" if is_admin() else "disabled")
                 self.choose.configure(state="normal")
                 self.stop_button.configure(state="disabled")
+                if self.status_key != "incomplete":
+                    self.set_status("stopped")
                 if self.closing:
                     self.root.destroy()
                     return
@@ -220,12 +261,16 @@ class App:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Install apps on supported Sony PMCA cameras over Wi-Fi.")
+    parser.add_argument("--lang", choices=list(LANGUAGES), help="Override the saved/display language")
+    parser.add_argument("--lab", action="store_true", help=argparse.SUPPRESS)
+    args = parser.parse_args()
     try:
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except (AttributeError, OSError):
         pass
     root = tk.Tk()
-    App(root, lab="--lab" in sys.argv)
+    App(root, lab=args.lab, language=args.lang)
     root.mainloop()
 
 

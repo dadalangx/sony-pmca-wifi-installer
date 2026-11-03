@@ -32,7 +32,7 @@ def main():
     command.append("main.py")
     subprocess.run(command, check=True, cwd=ROOT)
     output = ROOT / "dist" / "SonyPmcaWifiInstaller"
-    for name in ("README.md", "LICENSE", "THIRD_PARTY.md", "RELEASE_NOTES.md"):
+    for name in ("README.md", "README.zh-CN.md", "LICENSE", "THIRD_PARTY.md", "RELEASE_NOTES.md"):
         shutil.copyfile(ROOT / name, output / name)
     print("Built dist/SonyPmcaWifiInstaller/SonyPmcaWifiInstaller.exe")
 

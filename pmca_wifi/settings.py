@@ -6,11 +6,32 @@ from pathlib import Path
 import re
 import secrets
 
+from .i18n import LANGUAGES, system_language
+
 
 def state_dir():
     path = Path(os.environ["LOCALAPPDATA"]) / "SonyPmcaWifiInstaller"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def load_language():
+    try:
+        language = json.loads((state_dir() / "preferences.json").read_text(encoding="utf-8"))["language"]
+        if isinstance(language, str) and language in LANGUAGES:
+            return language
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return system_language()
+
+
+def save_language(language):
+    if language not in LANGUAGES:
+        raise ValueError("Unsupported language")
+    file = state_dir() / "preferences.json"
+    temporary = file.with_suffix(".new")
+    temporary.write_text(json.dumps({"language": language}) + "\n", encoding="utf-8")
+    temporary.replace(file)
 
 
 class Blob(C.Structure):

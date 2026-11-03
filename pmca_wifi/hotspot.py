@@ -1,8 +1,10 @@
 """Windows Mobile Hotspot, through the supported WinRT API."""
 import asyncio
 
+from .i18n import UserError
 
-class HotspotError(RuntimeError):
+
+class HotspotError(UserError):
     pass
 
 
@@ -23,13 +25,13 @@ class HotspotSession:
         )
         profile = NetworkInformation.get_internet_connection_profile()
         if profile is None:
-            raise HotspotError("请先让电脑连接网络，再重试。")
+            raise HotspotError("internet_required")
         capability = Manager.get_tethering_capability_from_connection_profile(profile)
         if capability != TetheringCapability.ENABLED:
-            raise HotspotError(f"Windows 无法使用此网卡开启热点（{capability.name}）。")
+            raise HotspotError("hotspot_capability", code=capability.name)
         self.manager = Manager.create_from_connection_profile(profile)
         if self.manager.tethering_operational_state != TetheringOperationalState.OFF:
-            raise HotspotError("电脑热点正在使用中，请先关闭它再重试。")
+            raise HotspotError("mobile_active")
         self.previous = self.manager.get_current_access_point_configuration()
         config = Configuration()
         config.ssid = ssid
@@ -46,7 +48,7 @@ class HotspotSession:
             await self.manager.configure_access_point_async(config)
             result = await self.manager.start_tethering_async()
             if result.status != TetheringOperationStatus.SUCCESS:
-                raise HotspotError(f"热点启动失败（{result.status.name}）：{result.additional_error_message}")
+                raise HotspotError("mobile_start", code=result.status.name, detail=result.additional_error_message)
             self.started = True
         except BaseException:
             await self.close()
@@ -65,7 +67,7 @@ class HotspotSession:
         if self.manager.tethering_operational_state != TetheringOperationalState.OFF:
             result = await self.manager.stop_tethering_async()
             if result.status != TetheringOperationStatus.SUCCESS:
-                raise HotspotError(f"热点未能关闭（{result.status.name}），请在 Windows 设置中关闭热点。")
+                raise HotspotError("mobile_stop", code=result.status.name)
         self.started = False
         await self.manager.configure_access_point_async(self.previous)
         self.changed = False
@@ -81,7 +83,7 @@ async def smoke_test(seconds=1200):
     manager = NetworkOperatorTetheringManager.create_from_connection_profile(NetworkInformation.get_internet_connection_profile())
     if manager.tethering_operational_state == TetheringOperationalState.ON:
         if manager.get_current_access_point_configuration().ssid not in ("Sony-App-Setup", "SONYSETUP"):
-            raise HotspotError("An unrelated hotspot is active; leave it unchanged.")
+            raise HotspotError("mobile_active")
         await manager.stop_tethering_async()
     stop = Path(__file__).resolve().parents[1] / ".local" / "stop-hotspot-lab"
     stop.unlink(missing_ok=True)
