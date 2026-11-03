@@ -6,6 +6,8 @@ Windows 中文图形向导，支持下载 Recipe Lab 或选择本地兼容 APK�
 
 当前版本：**0.1.0 实验版**。已在一台 Sony A7R II 上，用打包后的 Windows EXE 完成 Recipe Lab 安装、安装文件校验及临时包清理。
 
+**[下载 Windows x64 版](https://github.com/dadalangx/sony-pmca-wifi-installer/releases/download/v0.1.0/Sony-PMCA-WiFi-Installer-v0.1.0-Windows-x64.zip)** · [全部版本与更新说明](https://github.com/dadalangx/sony-pmca-wifi-installer/releases)
+
 ## 如何使用
 
 1. 下载 Windows x64 ZIP，**完整解压**到一个文件夹。不要在压缩包里直接运行，也不要单独移动 EXE。
