@@ -10,7 +10,7 @@ English and Simplified Chinese are now available in the Windows wizard.
 
 **Download the Windows x64 ZIP and extract the entire folder**, then run `SonyPmcaWifiInstaller.exe` as administrator. Python and OpenWrt are not required.
 
-Physical camera testing covers the 0.1.0 installation flow on one Sony A7R II, Windows 10 x64 and a VID 148F / PID 760B adapter using Hosted Network. The 0.1.1 localization update has automated UI and regression coverage; its new EXE has not been retested on a physical camera. Other hardware and Windows 11 remain unverified.
+Physical camera testing now covers versions 0.1.0 and 0.1.1 on the existing Sony A7R II, Windows 10 x64 and VID 148F / PID 760B adapter setup using Hosted Network. On November 4, 2026, the maintainer confirmed successful on-camera validation of the 0.1.1 Windows executable. Other hardware and Windows 11 remain unverified.
 
 ### 中文
 
@@ -21,7 +21,7 @@ Physical camera testing covers the 0.1.0 installation flow on one Sony A7R II, W
 - 项目首页改为英文，中文指南单独保留并互相链接；压缩包内同时提供两份指南。
 - 增加语言偏好和界面切换测试；相机安装协议未改变。
 
-完整解压 Windows x64 ZIP 后，以管理员身份运行 EXE，无需 Python 或 OpenWrt。相机实测覆盖 0.1.0 的 A7R II 安装流程；0.1.1 的新 EXE 尚未重新进行相机安装实测，其他硬件及 Windows 11 仍待验证。
+完整解压 Windows x64 ZIP 后，以管理员身份运行 EXE，无需 Python 或 OpenWrt。维护者于 2026 年 11 月 4 日确认，0.1.1 Windows EXE 已在现有 A7R II、Windows 10 x64 及 VID 148F / PID 760B 网卡的传统热点环境中实机验证成功。其他硬件及 Windows 11 仍待验证。
 
 ## 0.1.0
 

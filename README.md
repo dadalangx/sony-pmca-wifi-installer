@@ -6,7 +6,7 @@ English | [简体中文](README.zh-CN.md)
 
 A Windows wizard in English and Simplified Chinese. Choose Recipe Lab or a compatible local APK, and the tool creates a Wi-Fi hotspot for your camera. No OpenWrt, router configuration, IP addresses or DNS knowledge required.
 
-Current version: **0.1.1 experimental**. The installation flow was tested with the 0.1.0 Windows executable on one Sony A7R II, including Recipe Lab installation, file verification and temporary-package cleanup. Version 0.1.1 adds localization without changing the camera installation protocol.
+Current version: **0.1.1 experimental**. On November 4, 2026, the maintainer confirmed successful on-camera validation of the 0.1.1 Windows executable on the existing Sony A7R II setup. Version 0.1.1 adds localization without changing the camera installation protocol.
 
 **[Download for Windows x64](https://github.com/dadalangx/sony-pmca-wifi-installer/releases/download/v0.1.1/Sony-PMCA-WiFi-Installer-v0.1.1-Windows-x64.zip)** · [All releases and release notes](https://github.com/dadalangx/sony-pmca-wifi-installer/releases)
 
@@ -40,7 +40,7 @@ On first launch, Chinese Windows display languages select Simplified Chinese; ot
 | Camera | One Sony A7R II; firmware version not recorded; Android API 16 |
 | Computer | Windows 10 x64, build 19045 |
 | Wi-Fi adapter | Ralink/MediaTek USB adapter, VID 148F / PID 760B, driver 5.1.22.0 |
-| Hosted Network hotspot | 0.1.0 EXE completed Recipe Lab installation, verification and temporary-package cleanup |
+| Hosted Network hotspot | 0.1.0 completed Recipe Lab installation, verification and temporary-package cleanup; the maintainer also confirmed successful 0.1.1 on-camera validation on November 4, 2026 |
 | Windows Mobile Hotspot with that adapter | Phones could connect, but the camera store could not; the tool prefers Hosted Network when supported |
 | Windows 11, other adapters, cameras and firmware | Not yet tested with a physical camera |
 | Other PMCA APKs | Local selection and generic SPK packaging are implemented; individual apps have not been tested |

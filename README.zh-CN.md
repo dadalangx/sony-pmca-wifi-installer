@@ -6,7 +6,7 @@
 
 Windows 中英文图形向导，支持下载 Recipe Lab 或选择本地兼容 APK。电脑自动创建热点并处理安装所需的网络连接；使用者不需要 OpenWrt、路由器账号、IP 地址或 DNS 知识。
 
-当前版本：**0.1.1 实验版**。安装流程已在一台 Sony A7R II 上，用 0.1.0 Windows EXE 完成 Recipe Lab 安装、安装文件校验及临时包清理。0.1.1 增加中英文适配，未更改相机安装协议。
+当前版本：**0.1.1 实验版**。维护者于 2026 年 11 月 4 日确认，0.1.1 Windows EXE 已在现有 Sony A7R II 设备环境中实机验证成功。0.1.1 增加中英文适配，未更改相机安装协议。
 
 **[下载 Windows x64 版](https://github.com/dadalangx/sony-pmca-wifi-installer/releases/download/v0.1.1/Sony-PMCA-WiFi-Installer-v0.1.1-Windows-x64.zip)** · [全部版本与更新说明](https://github.com/dadalangx/sony-pmca-wifi-installer/releases)
 
@@ -38,7 +38,7 @@ Windows 中英文图形向导，支持下载 Recipe Lab 或选择本地兼容 AP
 | 相机 | Sony A7R II，一台实机；固件版本未记录；机内 Android API 16 |
 | 电脑 | Windows 10 x64，系统版本 19045 |
 | 无线网卡 | Ralink/MediaTek USB 网卡，VID 148F / PID 760B，驱动 5.1.22.0 |
-| 传统 Hosted Network 热点 | EXE 已完成 Recipe Lab 安装、安装后校验和临时包清理 |
+| 传统 Hosted Network 热点 | 0.1.0 已完成 Recipe Lab 安装、安装后校验和临时包清理；维护者另于 2026 年 11 月 4 日确认 0.1.1 实机验证成功 |
 | 上述网卡的 Windows 移动热点 | 手机可上网，相机商店连接失败；工具优先选择可用的传统热点 |
 | Windows 11、其他网卡、其他机型／固件 | 尚未实机验证 |
 | 其他 PMCA APK | 已实现通用封装与选择入口，尚未逐个实机测试 |
