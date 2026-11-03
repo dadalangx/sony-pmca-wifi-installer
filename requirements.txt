@@ -1,0 +1,7 @@
+pycryptodomex==3.24.1
+winrt-runtime==4.1.0
+winrt-Windows.Networking==4!10.0.28000.2957
+winrt-Windows.Networking.NetworkOperators==4!10.0.28000.2957
+winrt-Windows.Networking.Connectivity==4!10.0.28000.2957
+winrt-Windows.Foundation==4!10.0.28000.2957
+winrt-Windows.Foundation.Collections==4!10.0.28000.2957

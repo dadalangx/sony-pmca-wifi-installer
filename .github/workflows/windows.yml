@@ -1,0 +1,47 @@
+name: Build Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          architecture: x64
+          cache: pip
+      - name: Install build dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Test
+        run: python -m pytest -q
+      - name: Build
+        run: python build.py
+      - name: Package
+        run: python scripts/pack_release.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Sony-PMCA-WiFi-Installer-Windows-x64
+          path: releases/*
+      - name: Create draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$env:GITHUB_REF_NAME" --json url 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release already exists; keeping its reviewed assets."
+            exit 0
+          }
+          gh release create "$env:GITHUB_REF_NAME" releases/*.zip releases/SHA256SUMS.txt --draft --title "Sony PMCA Wi-Fi Installer $env:GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
